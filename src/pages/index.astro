@@ -1,11 +1,24 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
+export const prerender = false;
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import Layout from '../layouts/Layout.astro';
+import BusquedaIA from '../components/BusquedaIA.vue';
+import { supabase } from '../lib/supabase';
+
+const id = Astro.url.searchParams.get('id');
+
+// Consulta al servidor en cada request: los datos llegan dentro del HTML,
+// el componente no hace fetch desde el cliente.
+// Sin id en la URL no se consulta nada, así no se listan todas las IAs.
+let IAs = [];
+if (id) {
+	const { data } = await supabase.from('modelo').select('*').eq('id', Number(id));
+	IAs = data ?? [];
+}
 ---
 
 <Layout>
-	<Welcome />
+	<h1>Welcome to WikIA</h1>
+
+	<BusquedaIA IAs={IAs ?? []} />
 </Layout>
