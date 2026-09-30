@@ -1,0 +1,10 @@
+---
+export const prerender = true;
+
+import Layout from '../../layouts/Layout.astro';
+import RegistroForm from '../../components/auth/RegistroForm.vue';
+---
+
+<Layout title="Crear cuenta | WikIA">
+    <RegistroForm client:only="vue" />
+</Layout>

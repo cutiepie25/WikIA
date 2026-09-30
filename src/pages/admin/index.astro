@@ -1,0 +1,10 @@
+---
+export const prerender = true;
+
+import Layout from '../../layouts/Layout.astro';
+import ModeloAdmin from '../../components/admin/ModeloAdmin.vue';
+---
+
+<Layout title="Administración | WikIA">
+    <ModeloAdmin client:only="vue" />
+</Layout>
