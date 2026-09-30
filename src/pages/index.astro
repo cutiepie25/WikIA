@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
-import BusquedaIA from '../components/BusquedaIA.vue';
+import { BusquedaIA }  from '../components/BusquedaIA.vue';
 import { supabase } from '../lib/supabase';
 
 const id = Astro.url.searchParams.get('id');
