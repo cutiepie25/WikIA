@@ -5,20 +5,92 @@ import Layout from '../layouts/Layout.astro';
 import BusquedaIA from '../components/BusquedaIA.vue';
 import { supabase } from '../lib/supabase';
 
-const id = Astro.url.searchParams.get('id');
+const POR_PAGINA = 5;
 
-// Consulta al servidor en cada request: los datos llegan dentro del HTML,
-// el componente no hace fetch desde el cliente.
-// Sin id en la URL no se consulta nada, así no se listan todas las IAs.
-let IAs = [];
-if (id) {
-	const { data } = await supabase.from('modelo').select('*').eq('id', Number(id));
-	IAs = data ?? [];
+interface Modelo {
+	id: number;
+	nombre: string;
+	descripcion: string;
+	tipo_arquitectura: string | null;
+	sitio_web: string | null;
+	fecha_lanzamiento: string | null;
+	imagen_link: string | null;
 }
+
+// La fecha llega desde Postgres como texto 'AAAA-MM-DD'. La pasamos a 'DD/MM/AAAA'
+// partiendo el string a mano a proposito: usar new Date() la interpretaria en UTC
+// y en Argentina (UTC-3) mostraria el dia anterior.
+function formatearFecha(iso: string | null): string {
+	if (!iso) return '';
+
+	const [anio, mes, dia] = String(iso).slice(0, 10).split('-');
+	if (!anio || !mes || !dia) return String(iso);
+
+	return `${dia}/${mes}/${anio}`;
+}
+
+const idParam = Astro.url.searchParams.get('id');
+const paginaParam = Number(Astro.url.searchParams.get('page') ?? '1');
+
+const idNum = idParam === null || idParam.trim() === '' ? null : Number(idParam);
+const esBusqueda = Number.isInteger(idNum) && (idNum as number) >= 1;
+
+let IAs: Partial<Modelo>[] = [];
+let error: string | null = null;
+let pagina = 1;
+let total = 0;
+let totalPaginas = 0;
+
+if (esBusqueda) {
+	const { data, error: err } = await supabase
+		.from('modelo')
+		.select('*')
+		.eq('id', idNum)
+		.limit(1);
+
+	error = err?.message ?? null;
+	IAs = (data ?? []) as Partial<Modelo>[];
+	total = IAs.length;
+} else {
+	pagina = Number.isInteger(paginaParam) && paginaParam >= 1 ? paginaParam : 1;
+
+	const conteo = await supabase.from('modelo').select('*', { count: 'exact', head: true });
+	error = conteo.error?.message ?? null;
+	total = conteo.count ?? 0;
+	totalPaginas = Math.ceil(total / POR_PAGINA);
+
+	if (totalPaginas > 0 && pagina > totalPaginas) {
+		pagina = totalPaginas;
+	}
+
+	const desde = (pagina - 1) * POR_PAGINA;
+	const hasta = desde + POR_PAGINA - 1;
+
+	const { data, error: err } = await supabase
+		.from('modelo')
+		.select('*')
+		.order('id')
+		.range(desde, hasta);
+
+	error = error ?? err?.message ?? null;
+	IAs = (data ?? []) as Partial<Modelo>[];
+}
+
+const filas = IAs.map((fila) => ({
+	...fila,
+	fecha_lanzamiento: formatearFecha(fila.fecha_lanzamiento),
+}));
 ---
 
 <Layout>
 	<h1>Welcome to WikIA</h1>
 
-	<BusquedaIA IAs={IAs ?? []} />
+	<BusquedaIA
+		IAs={filas}
+		error={error}
+		pagina={pagina}
+		totalPaginas={totalPaginas}
+		total={total}
+		esBusqueda={esBusqueda}
+	/>
 </Layout>
