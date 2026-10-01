@@ -17,9 +17,6 @@ interface Modelo {
 	imagen_link: string | null;
 }
 
-// La fecha llega desde Postgres como texto 'AAAA-MM-DD'. La pasamos a 'DD/MM/AAAA'
-// partiendo el string a mano a proposito: usar new Date() la interpretaria en UTC
-// y en Argentina (UTC-3) mostraria el dia anterior.
 function formatearFecha(iso: string | null): string {
 	if (!iso) return '';
 
@@ -29,11 +26,22 @@ function formatearFecha(iso: string | null): string {
 	return `${dia}/${mes}/${anio}`;
 }
 
+function escaparLike(texto: string): string {
+	return texto.replace(/([%_,])/g, '\\$1');
+}
+
 const idParam = Astro.url.searchParams.get('id');
+const qParam = Astro.url.searchParams.get('q');
 const paginaParam = Number(Astro.url.searchParams.get('page') ?? '1');
 
-const idNum = idParam === null || idParam.trim() === '' ? null : Number(idParam);
-const esBusqueda = Number.isInteger(idNum) && (idNum as number) >= 1;
+const id = (idParam ?? '').trim().slice(0, 9);
+const idNum = Number(id);
+const esBusquedaId = id !== '' && Number.isInteger(idNum) && idNum >= 1;
+
+const q = (qParam ?? '').trim().slice(0, 50);
+
+const esBusquedaNombre = !esBusquedaId && q.length > 0;
+const esBusqueda = esBusquedaId || esBusquedaNombre;
 
 let IAs: Partial<Modelo>[] = [];
 let error: string | null = null;
@@ -41,7 +49,7 @@ let pagina = 1;
 let total = 0;
 let totalPaginas = 0;
 
-if (esBusqueda) {
+if (esBusquedaId) {
 	const { data, error: err } = await supabase
 		.from('modelo')
 		.select('*')
@@ -51,6 +59,35 @@ if (esBusqueda) {
 	error = err?.message ?? null;
 	IAs = (data ?? []) as Partial<Modelo>[];
 	total = IAs.length;
+	totalPaginas = 1;
+} else if (esBusquedaNombre) {
+	pagina = Number.isInteger(paginaParam) && paginaParam >= 1 ? paginaParam : 1;
+
+	const conteo = await supabase
+		.from('modelo')
+		.select('*', { count: 'exact', head: true })
+		.ilike('nombre', `%${escaparLike(q)}%`);
+
+	error = conteo.error?.message ?? null;
+	total = conteo.count ?? 0;
+	totalPaginas = Math.ceil(total / POR_PAGINA);
+
+	if (totalPaginas > 0 && pagina > totalPaginas) {
+		pagina = totalPaginas;
+	}
+
+	const desde = (pagina - 1) * POR_PAGINA;
+	const hasta = desde + POR_PAGINA - 1;
+
+	const { data, error: err } = await supabase
+		.from('modelo')
+		.select('*')
+		.ilike('nombre', `%${escaparLike(q)}%`)
+		.order('nombre')
+		.range(desde, hasta);
+
+	error = error ?? err?.message ?? null;
+	IAs = (data ?? []) as Partial<Modelo>[];
 } else {
 	pagina = Number.isInteger(paginaParam) && paginaParam >= 1 ? paginaParam : 1;
 
@@ -76,10 +113,7 @@ if (esBusqueda) {
 	IAs = (data ?? []) as Partial<Modelo>[];
 }
 
-const filas = IAs.map((fila) => ({
-	...fila,
-	fecha_lanzamiento: formatearFecha(fila.fecha_lanzamiento),
-}));
+const filas = IAs.map((fila) => ({...fila, fecha_lanzamiento: formatearFecha(fila.fecha_lanzamiento),}));
 ---
 
 <Layout title="Listado | WikIA">
@@ -88,9 +122,13 @@ const filas = IAs.map((fila) => ({
 	<BusquedaIA
 		IAs={filas}
 		error={error}
+		id={id}
+		q={q}
 		pagina={pagina}
 		totalPaginas={totalPaginas}
 		total={total}
 		esBusqueda={esBusqueda}
+		esBusquedaId={esBusquedaId}
+		esBusquedaNombre={esBusquedaNombre}
 	/>
 </Layout>

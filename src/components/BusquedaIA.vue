@@ -1,25 +1,72 @@
 <script setup>
-defineProps({
+const props = defineProps({
 	IAs: { type: Array, default: () => [] },
 	error: { type: String, default: null },
+	id: { type: String, default: '' },
+	q: { type: String, default: '' },
 	pagina: { type: Number, default: 1 },
 	totalPaginas: { type: Number, default: 0 },
 	total: { type: Number, default: 0 },
 	esBusqueda: { type: Boolean, default: false },
+	esBusquedaId: { type: Boolean, default: false },
+	esBusquedaNombre: { type: Boolean, default: false },
 });
+
+// La paginacion tiene que arrastrar el termino de busqueda, si no al pasar de
+// pagina se pierde la query y vuelve al listado completo.
+const paginaHref = (n) =>
+	props.esBusquedaNombre
+		? `/main/?q=${encodeURIComponent(props.q)}&page=${n}`
+		: `/main/?page=${n}`;
 </script>
 
 <template>
+	<!-- Dos forms separados a proposito: en un solo form, cada boton mandaria
+	     los dos campos y el servidor recibiria id y q juntos. -->
 	<form method="get" action="/main/">
-		<input type="number" name="id" min="1" step="1" placeholder="Id de la IA" />
+		<label for="buscar-id">Buscar por ID:</label>
+		<input
+			id="buscar-id"
+			type="number"
+			name="id"
+			min="1"
+			step="1"
+			:value="id"
+			placeholder="Ej: 3"
+			autocomplete="off"
+		/>
 		<button type="submit">Consultar</button>
-		<a v-if="esBusqueda" href="/main/">Ver todas</a>
 	</form>
 
+	<form method="get" action="/main/">
+		<label for="buscar-nombre">Buscar por nombre:</label>
+		<input
+			id="buscar-nombre"
+			type="search"
+			name="q"
+			:value="q"
+			placeholder="Ej: llama, gpt, claude"
+			autocomplete="off"
+		/>
+		<button type="submit">Buscar</button>
+	</form>
+
+	<a v-if="esBusqueda" href="/main/">Ver todas</a>
+
 	<p v-if="error">Error al consultar Supabase: {{ error }}</p>
+	<p v-else-if="esBusquedaId && IAs.length === 0">
+		No se encontró ninguna IA con id {{ id }}.
+	</p>
+	<p v-else-if="esBusquedaNombre && IAs.length === 0">
+		No se encontraron IAs para "{{ q }}".
+	</p>
 	<p v-else-if="IAs.length === 0">No se encontraron IAs.</p>
 
 	<template v-else>
+		<p v-if="esBusquedaNombre">
+			{{ total }} resultado{{ total === 1 ? '' : 's' }} para "{{ q }}".
+		</p>
+
 		<div v-for="ia in IAs" :key="ia.id">
 			<img :src="ia.imagen_link" :alt="ia.nombre" width="120" />
 			<p><b>Nombre:</b> {{ ia.nombre }}</p>
@@ -32,10 +79,10 @@ defineProps({
 			</p>
 		</div>
 
-		<nav v-if="!esBusqueda && totalPaginas > 1">
-			<a v-if="pagina > 1" :href="`/main/?page=${pagina - 1}`">Anterior</a>
+		<nav v-if="totalPaginas > 1">
+			<a v-if="pagina > 1" :href="paginaHref(pagina - 1)">Anterior</a>
 			<span>Página {{ pagina }} de {{ totalPaginas }}</span>
-			<a v-if="pagina < totalPaginas" :href="`/main/?page=${pagina + 1}`">Siguiente</a>
+			<a v-if="pagina < totalPaginas" :href="paginaHref(pagina + 1)">Siguiente</a>
 		</nav>
 	</template>
 </template>
