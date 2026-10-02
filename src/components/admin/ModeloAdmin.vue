@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
-import { supabase } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase.client'
 import { useAuth } from '../../composables/useAuth'
 
 interface Modelo {
@@ -8,6 +8,30 @@ interface Modelo {
 	nombre: string
 	descripcion: string
 	imagen_link: string
+	fecha_lanzamiento: string | null
+	tipo_arquitectura: string | null
+	sitio_web: string | null
+	tiene_capa_gratuita: boolean | null
+}
+
+interface Formulario {
+	nombre: string
+	descripcion: string
+	imagen_link: string
+	fecha_lanzamiento: string
+	tipo_arquitectura: string
+	sitio_web: string
+	tiene_capa_gratuita: string
+}
+
+const Vacio: Formulario = {
+	nombre: '',
+	descripcion: '',
+	imagen_link: '',
+	fecha_lanzamiento: '',
+	tipo_arquitectura: '',
+	sitio_web: '',
+	tiene_capa_gratuita: '',
 }
 
 const { requireSession, signOut } = useAuth()
@@ -16,7 +40,7 @@ const listo = ref(false) // no se pinta nada hasta confirmar la sesión
 const modelos = ref<Modelo[]>([])
 const error = ref<string | null>(null)
 const editandoId = ref<number | null>(null)
-const form = reactive({ nombre: '', descripcion: '', imagen_link: '' })
+const form = reactive<Formulario>({ ...Vacio })
 
 let cancelarSuscripcion: (() => void) | null = null
 
@@ -44,18 +68,32 @@ async function cargar() {
 
 function limpiar() {
 	editandoId.value = null
-	Object.assign(form, { nombre: '', descripcion: '', imagen_link: '' })
+	Object.assign(form, Vacio)
 }
 
 // CREATE / UPDATE según haya un id en edición
 async function guardar() {
 	error.value = null
 
+	// Único cambio respecto a mandar { ...form }: los campos sin completar van
+	// como null y no como ''. Una columna date rechaza la cadena vacía y el
+	// insert fallaría antes de llegar a RLS. El select de capa gratuita devuelve
+	// texto, así que se traduce a booleano (o null si quedó sin especificar).
+	const payload = {
+		nombre: form.nombre,
+		descripcion: form.descripcion,
+		imagen_link: form.imagen_link,
+		fecha_lanzamiento: form.fecha_lanzamiento || null,
+		tipo_arquitectura: form.tipo_arquitectura || null,
+		sitio_web: form.sitio_web || null,
+		tiene_capa_gratuita: form.tiene_capa_gratuita === '' ? null : form.tiene_capa_gratuita === 'true',
+	}
+
 	// .select() devuelve las filas afectadas: con RLS, un update/delete
 	// bloqueado no lanza error, simplemente afecta 0 filas.
 	const consulta = editandoId.value === null
-		? supabase.from('modelo').insert({ ...form }).select()
-		: supabase.from('modelo').update({ ...form }).eq('id', editandoId.value).select()
+		? supabase.from('modelo').insert(payload).select()
+		: supabase.from('modelo').update(payload).eq('id', editandoId.value).select()
 
 	const { data, error: err } = await consulta
 	if (err) return (error.value = err.message)
@@ -67,7 +105,15 @@ async function guardar() {
 
 function editar(m: Modelo) {
 	editandoId.value = m.id
-	Object.assign(form, { nombre: m.nombre, descripcion: m.descripcion, imagen_link: m.imagen_link })
+	Object.assign(form, {
+		nombre: m.nombre ?? '',
+		descripcion: m.descripcion ?? '',
+		imagen_link: m.imagen_link ?? '',
+		fecha_lanzamiento: m.fecha_lanzamiento ?? '',
+		tipo_arquitectura: m.tipo_arquitectura ?? '',
+		sitio_web: m.sitio_web ?? '',
+		tiene_capa_gratuita: m.tiene_capa_gratuita === null ? '' : String(m.tiene_capa_gratuita),
+	})
 }
 
 // DELETE
@@ -95,6 +141,20 @@ async function eliminar(m: Modelo) {
 			<input v-model="form.nombre" placeholder="Nombre" required />
 			<input v-model="form.imagen_link" type="url" placeholder="URL de la imagen" required />
 			<textarea v-model="form.descripcion" placeholder="Descripción" required></textarea>
+			<label>
+				Fecha de lanzamiento
+				<input v-model="form.fecha_lanzamiento" type="date" required />
+			</label>
+			<input v-model="form.tipo_arquitectura" placeholder="Tipo de arquitectura" />
+			<input v-model="form.sitio_web" type="url" placeholder="Sitio web" />
+			<label>
+				¿Tiene capa gratuita?
+				<select v-model="form.tiene_capa_gratuita">
+					<option value="">Sin especificar</option>
+					<option value="true">Sí</option>
+					<option value="false">No</option>
+				</select>
+			</label>
 			<button>{{ editandoId === null ? 'Crear' : 'Guardar cambios' }}</button>
 			<button v-if="editandoId !== null" type="button" @click="limpiar">Cancelar</button>
 		</form>
@@ -107,6 +167,10 @@ async function eliminar(m: Modelo) {
 			<li v-for="m in modelos" :key="m.id">
 				<img :src="m.imagen_link" :alt="m.nombre" width="60" />
 				<b>#{{ m.id }} {{ m.nombre }}</b> — {{ m.descripcion }}
+				<small v-if="m.fecha_lanzamiento"> · Lanzamiento: {{ m.fecha_lanzamiento }}</small>
+				<small v-if="m.tipo_arquitectura"> · {{ m.tipo_arquitectura }}</small>
+				<small v-if="m.sitio_web"> · <a :href="m.sitio_web" target="_blank" rel="noopener">sitio</a></small>
+				<small v-if="m.tiene_capa_gratuita !== null"> · Capa gratuita: {{ m.tiene_capa_gratuita ? 'sí' : 'no' }}</small>
 				<button @click="editar(m)">Editar</button>
 				<button @click="eliminar(m)">Eliminar</button>
 			</li>

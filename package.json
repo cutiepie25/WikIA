@@ -9,10 +9,12 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "deploy": "astro build && wrangler deploy",
+    "deploy:dry": "astro build && wrangler deploy --dry-run",
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/node": "^11.1.6",
+    "@astrojs/cloudflare": "^14.3.3",
     "@astrojs/vue": "^7.0.3",
     "@supabase/supabase-js": "^2.117.2",
     "astro": "^7.3.5",
@@ -20,5 +22,8 @@
   },
   "allowScripts": {
     "esbuild": true
+  },
+  "devDependencies": {
+    "wrangler": "^4.145.0"
   }
 }

@@ -1,0 +1,26 @@
+{
+	// Cloudflare Workers entrypoint generado por @astrojs/cloudflare.
+	// No editar `main`: Astro lo resuelve solo en cada build.
+	"main": "@astrojs/cloudflare/entrypoints/server",
+
+	"name": "wikia",
+
+	// Actualizar al dia del deploy. No adelantar la fecha: Cloudflare
+	// rechaza compatibility_date en el futuro.
+	"compatibility_date": "2026-09-30",
+
+	// nodejs_compat        -> evita errores "process is not defined" en Workers.
+	// global_fetch_strictly_public -> obliga a que fetch() vaya a internet
+	//   publico. Necesario porque el SSR consulta Supabase.
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+	// ASSETS sirve lo prerenderizado: las 4 paginas con prerender = true.
+	"assets": {
+		"binding": "ASSETS",
+		"directory": "./dist"
+	},
+
+	"observability": {
+		"enabled": true
+	}
+}

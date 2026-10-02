@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { supabase } from '../lib/supabase'
+import { supabase } from '../lib/supabase.client'
 
 const RUTA_LOGIN = '/auth/login'
 const RUTA_ADMIN = '/admin'
