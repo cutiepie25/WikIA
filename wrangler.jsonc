@@ -7,7 +7,7 @@
 
 	// Actualizar al dia del deploy. No adelantar la fecha: Cloudflare
 	// rechaza compatibility_date en el futuro.
-	"compatibility_date": "2026-09-30",
+	"compatibility_date": "2026-10-01",
 
 	// nodejs_compat        -> evita errores "process is not defined" en Workers.
 	// global_fetch_strictly_public -> obliga a que fetch() vaya a internet

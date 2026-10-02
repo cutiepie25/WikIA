@@ -66,7 +66,7 @@ const paginaHref = (n) =>
 		</p>
 		<p v-else-if="IAs.length === 0">No se encontraron IAs.</p>
 
-		<template v-else>
+<template v-else>
 			<p v-if="esBusquedaNombre">
 				{{ total }} resultado{{ total === 1 ? '' : 's' }} para "{{ q }}".
 			</p>
@@ -75,6 +75,8 @@ const paginaHref = (n) =>
 				<img :src="ia.imagen_link" :alt="ia.nombre" width="120" />
 				<p><b>Nombre:</b> {{ ia.nombre }}</p>
 				<p><b>Descripción:</b> {{ ia.descripcion }}</p>
+				<p v-if="ia.compania_nombre"><b>Compañía:</b> {{ ia.compania_nombre }}</p>
+				<p v-if="ia.licencia_nombre"><b>Licencia:</b> {{ ia.licencia_nombre }}</p>
 				<p><b>Arquitectura:</b> {{ ia.tipo_arquitectura }}</p>
 				<p><b>Lanzamiento:</b> {{ ia.fecha_lanzamiento }}</p>
 				<p>

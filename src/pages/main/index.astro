@@ -7,6 +7,9 @@ import { supabase } from '../../lib/supabase.server';
 
 const POR_PAGINA = 5;
 
+const CAMPOS =
+	'id, nombre, descripcion, tipo_arquitectura, sitio_web, fecha_lanzamiento, imagen_link, compania(nombre), licencia(nombre)';
+
 interface Modelo {
 	id: number;
 	nombre: string;
@@ -15,6 +18,8 @@ interface Modelo {
 	sitio_web: string | null;
 	fecha_lanzamiento: string | null;
 	imagen_link: string | null;
+	compania?: { nombre: string } | null;
+	licencia?: { nombre: string } | null;
 }
 
 function formatearFecha(iso: string | null): string {
@@ -52,7 +57,7 @@ let totalPaginas = 0;
 if (esBusquedaId) {
 	const { data, error: err } = await supabase
 		.from('modelo')
-		.select('*')
+		.select(CAMPOS)
 		.eq('id', idNum)
 		.limit(1);
 
@@ -81,7 +86,7 @@ if (esBusquedaId) {
 
 	const { data, error: err } = await supabase
 		.from('modelo')
-		.select('*')
+		.select(CAMPOS)
 		.ilike('nombre', `%${escaparLike(q)}%`)
 		.order('nombre')
 		.range(desde, hasta);
@@ -105,7 +110,7 @@ if (esBusquedaId) {
 
 	const { data, error: err } = await supabase
 		.from('modelo')
-		.select('*')
+		.select(CAMPOS)
 		.order('id')
 		.range(desde, hasta);
 
@@ -113,7 +118,12 @@ if (esBusquedaId) {
 	IAs = (data ?? []) as Partial<Modelo>[];
 }
 
-const filas = IAs.map((fila) => ({...fila, fecha_lanzamiento: formatearFecha(fila.fecha_lanzamiento),}));
+const filas = IAs.map((fila) => ({
+	...fila,
+	fecha_lanzamiento: formatearFecha(fila.fecha_lanzamiento),
+	compania_nombre: fila.compania?.nombre ?? null,
+	licencia_nombre: fila.licencia?.nombre ?? null,
+}));
 ---
 
 <Layout title="Listado | WikIA">

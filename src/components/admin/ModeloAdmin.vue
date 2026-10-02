@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { supabase } from '../../lib/supabase.client'
 import { useAuth } from '../../composables/useAuth'
@@ -12,6 +12,8 @@ interface Modelo {
 	tipo_arquitectura: string | null
 	sitio_web: string | null
 	tiene_capa_gratuita: boolean | null
+	id_compania: number | null
+	id_licencia: number | null
 }
 
 interface Formulario {
@@ -22,6 +24,14 @@ interface Formulario {
 	tipo_arquitectura: string
 	sitio_web: string
 	tiene_capa_gratuita: string
+	id_compania: string
+	id_licencia: string
+}
+
+// Filas de los catÃ¡logos: solo id + nombre, que es lo que se necesita para pintar el desplegable
+interface Catalogo {
+	id: number
+	nombre: string
 }
 
 const Vacio: Formulario = {
@@ -32,12 +42,16 @@ const Vacio: Formulario = {
 	tipo_arquitectura: '',
 	sitio_web: '',
 	tiene_capa_gratuita: '',
+	id_compania: '',
+	id_licencia: '',
 }
 
 const { requireSession, signOut } = useAuth()
 
-const listo = ref(false) // no se pinta nada hasta confirmar la sesión
+const listo = ref(false) // no se pinta nada hasta confirmar la sesiÃ³n
 const modelos = ref<Modelo[]>([])
+const companias = ref<Catalogo[]>([])
+const licencias = ref<Catalogo[]>([])
 const error = ref<string | null>(null)
 const editandoId = ref<number | null>(null)
 const form = reactive<Formulario>({ ...Vacio })
@@ -47,14 +61,14 @@ let cancelarSuscripcion: (() => void) | null = null
 onMounted(async () => {
 	if (!(await requireSession())) return
 
-	// Si la sesión se cierra (otra pestaña, token expirado) vuelve al login
+	// Si la sesiÃ³n se cierra (otra pestaÃ±a, token expirado) vuelve al login
 	const { data } = supabase.auth.onAuthStateChange((evento) => {
 		if (evento === 'SIGNED_OUT') window.location.replace('/auth/login')
 	})
 	cancelarSuscripcion = () => data.subscription.unsubscribe()
 
 	listo.value = true
-	await cargar()
+	await Promise.all([cargar(), cargarCatalogos()])
 })
 
 onUnmounted(() => cancelarSuscripcion?.())
@@ -66,19 +80,33 @@ async function cargar() {
 	modelos.value = data ?? []
 }
 
+// READ de los catÃ¡logos que alimentan los desplegables.
+// El componente es client:only, asÃ­ que no hay forma de pasarlos desde el servidor.
+async function cargarCatalogos() {
+	const [compania, licencia] = await Promise.all([
+		supabase.from('compania').select('id, nombre').order('nombre'),
+		supabase.from('licencia').select('id, nombre').order('nombre'),
+	])
+	if (compania.error) return (error.value = compania.error.message)
+	if (licencia.error) return (error.value = licencia.error.message)
+	companias.value = compania.data ?? []
+	licencias.value = licencia.data ?? []
+}
+
+// Traduce el id guardado al nombre del catÃ¡logo. Si el catÃ¡logo aÃºn no cargÃ³, cae al id.
+function nombreDe(catalogo: Catalogo[], id: number | null): string {
+	return catalogo.find((c) => c.id === id)?.nombre ?? `#${id}`
+}
+
 function limpiar() {
 	editandoId.value = null
 	Object.assign(form, Vacio)
 }
 
-// CREATE / UPDATE según haya un id en edición
+// CREATE / UPDATE segÃºn haya un id en ediciÃ³n
 async function guardar() {
 	error.value = null
 
-	// Único cambio respecto a mandar { ...form }: los campos sin completar van
-	// como null y no como ''. Una columna date rechaza la cadena vacía y el
-	// insert fallaría antes de llegar a RLS. El select de capa gratuita devuelve
-	// texto, así que se traduce a booleano (o null si quedó sin especificar).
 	const payload = {
 		nombre: form.nombre,
 		descripcion: form.descripcion,
@@ -87,17 +115,18 @@ async function guardar() {
 		tipo_arquitectura: form.tipo_arquitectura || null,
 		sitio_web: form.sitio_web || null,
 		tiene_capa_gratuita: form.tiene_capa_gratuita === '' ? null : form.tiene_capa_gratuita === 'true',
+		// Los desplegables devuelven string ('' cuando no hay selecciÃ³n): se castea a integer o null
+		id_compania: form.id_compania === '' ? null : Number(form.id_compania),
+		id_licencia: form.id_licencia === '' ? null : Number(form.id_licencia),
 	}
 
-	// .select() devuelve las filas afectadas: con RLS, un update/delete
-	// bloqueado no lanza error, simplemente afecta 0 filas.
 	const consulta = editandoId.value === null
 		? supabase.from('modelo').insert(payload).select()
 		: supabase.from('modelo').update(payload).eq('id', editandoId.value).select()
 
 	const { data, error: err } = await consulta
 	if (err) return (error.value = err.message)
-	if (!data?.length) return (error.value = 'No se guardó: sin permiso (RLS) o el registro no existe.')
+	if (!data?.length) return (error.value = 'No se guardÃ³: sin permiso (RLS) o el registro no existe.')
 
 	limpiar()
 	await cargar()
@@ -113,17 +142,19 @@ function editar(m: Modelo) {
 		tipo_arquitectura: m.tipo_arquitectura ?? '',
 		sitio_web: m.sitio_web ?? '',
 		tiene_capa_gratuita: m.tiene_capa_gratuita === null ? '' : String(m.tiene_capa_gratuita),
+		id_compania: m.id_compania === null ? '' : String(m.id_compania),
+		id_licencia: m.id_licencia === null ? '' : String(m.id_licencia),
 	})
 }
 
 // DELETE
 async function eliminar(m: Modelo) {
-	if (!confirm(`¿Eliminar "${m.nombre}"?`)) return
+	if (!confirm(`Â¿Eliminar "${m.nombre}"?`)) return
 	error.value = null
 
 	const { data, error: err } = await supabase.from('modelo').delete().eq('id', m.id).select()
 	if (err) return (error.value = err.message)
-	if (!data?.length) return (error.value = 'No se eliminó: sin permiso (RLS).')
+	if (!data?.length) return (error.value = 'No se eliminÃ³: sin permiso (RLS).')
 
 	await cargar()
 }
@@ -132,15 +163,15 @@ async function eliminar(m: Modelo) {
 <template>
 	<div v-if="listo">
 		<header class="admin-head">
-			<h1>Administración de modelos</h1>
-			<button @click="signOut">Cerrar sesión</button>
+			<h1>AdministraciÃ³n de modelos</h1>
+			<button @click="signOut">Cerrar sesiÃ³n</button>
 		</header>
 
 		<form class="admin-form" @submit.prevent="guardar">
 			<h2>{{ editandoId === null ? 'Nuevo modelo' : `Editando #${editandoId}` }}</h2>
 			<input v-model="form.nombre" placeholder="Nombre" required />
 			<input v-model="form.imagen_link" type="url" placeholder="URL de la imagen" required />
-			<textarea v-model="form.descripcion" placeholder="Descripción" required></textarea>
+			<textarea v-model="form.descripcion" placeholder="DescripciÃ³n" required></textarea>
 			<label>
 				Fecha de lanzamiento
 				<input v-model="form.fecha_lanzamiento" type="date" required />
@@ -148,11 +179,25 @@ async function eliminar(m: Modelo) {
 			<input v-model="form.tipo_arquitectura" placeholder="Tipo de arquitectura" />
 			<input v-model="form.sitio_web" type="url" placeholder="Sitio web" />
 			<label>
-				¿Tiene capa gratuita?
+				Â¿Tiene capa gratuita?
 				<select v-model="form.tiene_capa_gratuita">
 					<option value="">Sin especificar</option>
-					<option value="true">Sí</option>
+					<option value="true">SÃ­</option>
 					<option value="false">No</option>
+				</select>
+			</label>
+			<label>
+				CompaÃ±Ã­a
+				<select v-model="form.id_compania">
+					<option value="">Sin especificar</option>
+					<option v-for="c in companias" :key="c.id" :value="String(c.id)">{{ c.nombre }}</option>
+				</select>
+			</label>
+			<label>
+				Licencia
+				<select v-model="form.id_licencia">
+					<option value="">Sin especificar</option>
+					<option v-for="l in licencias" :key="l.id" :value="String(l.id)">{{ l.nombre }}</option>
 				</select>
 			</label>
 			<button>{{ editandoId === null ? 'Crear' : 'Guardar cambios' }}</button>
@@ -161,18 +206,20 @@ async function eliminar(m: Modelo) {
 
 		<p v-if="error" role="alert">{{ error }}</p>
 
-		<p v-if="modelos.length === 0">No hay modelos todavía.</p>
+		<p v-if="modelos.length === 0">No hay modelos todavÃ­a.</p>
 
-		<ul class="model-list">
+	<ul class="model-list">
 			<li v-for="m in modelos" :key="m.id" class="model-row">
 				<img class="model-thumb" :src="m.imagen_link" :alt="m.nombre" />
 				<div class="model-body">
-					<div><b>#{{ m.id }} {{ m.nombre }}</b> — {{ m.descripcion }}</div>
+					<div><b>#{{ m.id }} {{ m.nombre }}</b> â€” {{ m.descripcion }}</div>
 					<div class="model-meta">
-						<small v-if="m.fecha_lanzamiento"> · Lanzamiento: {{ m.fecha_lanzamiento }}</small>
-						<small v-if="m.tipo_arquitectura"> · {{ m.tipo_arquitectura }}</small>
-						<small v-if="m.sitio_web"> · <a :href="m.sitio_web" target="_blank" rel="noopener">sitio</a></small>
-						<small v-if="m.tiene_capa_gratuita !== null"> · Capa gratuita: {{ m.tiene_capa_gratuita ? 'sí' : 'no' }}</small>
+						<small v-if="m.fecha_lanzamiento"> Â· Lanzamiento: {{ m.fecha_lanzamiento }}</small>
+						<small v-if="m.tipo_arquitectura"> Â· {{ m.tipo_arquitectura }}</small>
+						<small v-if="m.sitio_web"> Â· <a :href="m.sitio_web" target="_blank" rel="noopener">sitio</a></small>
+						<small v-if="m.tiene_capa_gratuita !== null"> Â· Capa gratuita: {{ m.tiene_capa_gratuita ? 'sÃ­' : 'no' }}</small>
+						<small v-if="m.id_compania !== null"> Â· CompaÃ±Ã­a: {{ nombreDe(companias, m.id_compania) }}</small>
+						<small v-if="m.id_licencia !== null"> Â· Licencia: {{ nombreDe(licencias, m.id_licencia) }}</small>
 					</div>
 				</div>
 				<div class="model-actions">
