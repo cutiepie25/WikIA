@@ -131,12 +131,12 @@ async function eliminar(m: Modelo) {
 
 <template>
 	<div v-if="listo">
-		<header>
+		<header class="admin-head">
 			<h1>Administración de modelos</h1>
 			<button @click="signOut">Cerrar sesión</button>
 		</header>
 
-		<form @submit.prevent="guardar">
+		<form class="admin-form" @submit.prevent="guardar">
 			<h2>{{ editandoId === null ? 'Nuevo modelo' : `Editando #${editandoId}` }}</h2>
 			<input v-model="form.nombre" placeholder="Nombre" required />
 			<input v-model="form.imagen_link" type="url" placeholder="URL de la imagen" required />
@@ -163,17 +163,92 @@ async function eliminar(m: Modelo) {
 
 		<p v-if="modelos.length === 0">No hay modelos todavía.</p>
 
-		<ul>
-			<li v-for="m in modelos" :key="m.id">
-				<img :src="m.imagen_link" :alt="m.nombre" width="60" />
-				<b>#{{ m.id }} {{ m.nombre }}</b> — {{ m.descripcion }}
-				<small v-if="m.fecha_lanzamiento"> · Lanzamiento: {{ m.fecha_lanzamiento }}</small>
-				<small v-if="m.tipo_arquitectura"> · {{ m.tipo_arquitectura }}</small>
-				<small v-if="m.sitio_web"> · <a :href="m.sitio_web" target="_blank" rel="noopener">sitio</a></small>
-				<small v-if="m.tiene_capa_gratuita !== null"> · Capa gratuita: {{ m.tiene_capa_gratuita ? 'sí' : 'no' }}</small>
-				<button @click="editar(m)">Editar</button>
-				<button @click="eliminar(m)">Eliminar</button>
+		<ul class="model-list">
+			<li v-for="m in modelos" :key="m.id" class="model-row">
+				<img class="model-thumb" :src="m.imagen_link" :alt="m.nombre" />
+				<div class="model-body">
+					<div><b>#{{ m.id }} {{ m.nombre }}</b> — {{ m.descripcion }}</div>
+					<div class="model-meta">
+						<small v-if="m.fecha_lanzamiento"> · Lanzamiento: {{ m.fecha_lanzamiento }}</small>
+						<small v-if="m.tipo_arquitectura"> · {{ m.tipo_arquitectura }}</small>
+						<small v-if="m.sitio_web"> · <a :href="m.sitio_web" target="_blank" rel="noopener">sitio</a></small>
+						<small v-if="m.tiene_capa_gratuita !== null"> · Capa gratuita: {{ m.tiene_capa_gratuita ? 'sí' : 'no' }}</small>
+					</div>
+				</div>
+				<div class="model-actions">
+					<button @click="editar(m)">Editar</button>
+					<button @click="eliminar(m)">Eliminar</button>
+				</div>
 			</li>
 		</ul>
 	</div>
 </template>
+
+<style scoped>
+/* layout only */
+.admin-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 1rem;
+}
+.admin-form {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+.admin-form label {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+}
+.admin-form input,
+.admin-form textarea,
+.admin-form select {
+	width: 100%;
+}
+.model-list {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	margin: 0;
+	padding: 0;
+}
+.model-row {
+	display: flex;
+	gap: 1rem;
+	align-items: flex-start;
+}
+.model-thumb {
+	width: 60px;
+	height: 60px;
+	object-fit: cover;
+	flex-shrink: 0;
+}
+.model-body {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+}
+.model-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem 0.75rem;
+}
+.model-actions {
+	display: flex;
+	gap: 0.5rem;
+	flex-shrink: 0;
+}
+@media (max-width: 600px) {
+	.model-row {
+		flex-wrap: wrap;
+	}
+	.model-actions {
+		width: 100%;
+	}
+}
+</style>

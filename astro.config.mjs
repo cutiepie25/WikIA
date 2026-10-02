@@ -6,7 +6,7 @@ import cloudflare from '@astrojs/cloudflare';
 
 // https://astro.build/config
 export default defineConfig({
-  integrations: [vue()],
+  integrations: [vue(), cloudflare()],
 
   // El proyecto no usa la API de Sessions de Astro (la sesion de Supabase va
   // en localStorage desde el navegador). Con esto el adapter no configura el
